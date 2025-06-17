@@ -12,7 +12,7 @@ dist
 data
 # Data
 !**/alpaca-data-conversation.json
-
+bitsandbytes
 # Editor
 .idea
 *.swp
