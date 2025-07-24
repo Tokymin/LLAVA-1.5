@@ -5,7 +5,7 @@
 # Uncomment and set the following variables correspondingly to run this script:
 
 ################## VICUNA ##################
-# PROMPT_VERSION=v1
+
 # MODEL_VERSION="vicuna-v1-3-7b"
 ################## VICUNA ##################
 
@@ -14,23 +14,25 @@
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
+PROMPT_VERSION=v1
+MODEL_VERSION="llava-v1.5-7b"
 deepspeed llava/train/train_mem.py \
     --deepspeed ./scripts/zero2.json \
-    --model_name_or_path ./checkpoints/$MODEL_VERSION \
+    --model_name_or_path /mnt/share/HuggingfaceModels/liuhaotian/llava-v1.5-7b \
     --version $PROMPT_VERSION \
-    --data_path ./playground/data/llava_instruct_80k.json \
-    --image_folder /path/to/coco/train2017 \
-    --vision_tower openai/clip-vit-large-patch14 \
-    --pretrain_mm_mlp_adapter ./checkpoints/llava-$MODEL_VERSION-pretrain/mm_projector.bin \
+    --data_path /mnt/share/HuggingfaceDatasets/liuhaotian/LLaVA-Instruct-150K/llava_instruct_80k.json \
+    --image_folder /mnt/share/Datasets/LLAVA-1.5/playground/data/coco/train2017 \
+    --vision_tower /mnt/share/HuggingfaceModels/openai/clip-vit-large-patch14/ \
+    --pretrain_mm_mlp_adapter /mnt/share/HuggingfaceModels/liuhaotian/llava-v1.5-7b/mm_projector.bin \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
-    --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 1 \
+    --per_device_train_batch_size 2 \
+    --per_device_eval_batch_size 1 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \

@@ -16,7 +16,8 @@ bitsandbytes
 # Editor
 .idea
 *.swp
-
+llava.egg-info
+checkpoints
 # Other
 .DS_Store
 wandb
