@@ -27,7 +27,8 @@ import torch
 import transformers
 import tokenizers
 
-from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, \
+    DEFAULT_IM_END_TOKEN
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -36,7 +37,6 @@ from llava.model import *
 from llava.mm_utils import tokenizer_image_token
 
 from PIL import Image
-
 
 local_rank = None
 
@@ -47,6 +47,7 @@ def rank0_print(*args):
 
 
 from packaging import version
+
 IS_TOKENIZER_GREATER_THAN_0_14 = version.parse(tokenizers.__version__) >= version.parse('0.14')
 
 
@@ -57,7 +58,7 @@ class ModelArguments:
     freeze_backbone: bool = field(default=False)
     tune_mm_mlp_adapter: bool = field(default=False)
     vision_tower: Optional[str] = field(default=None)
-    mm_vision_select_layer: Optional[int] = field(default=-1)   # default to the last layer
+    mm_vision_select_layer: Optional[int] = field(default=-1)  # default to the last layer
     pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
     mm_projector_type: Optional[str] = field(default='linear')
     mm_use_im_start_end: bool = field(default=False)
@@ -87,7 +88,7 @@ class TrainingArguments(transformers.TrainingArguments):
         default=512,
         metadata={
             "help":
-            "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
+                "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
         },
     )
     double_quant: bool = field(
@@ -177,7 +178,7 @@ def find_all_linear_names(model):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
 
-    if 'lm_head' in lora_module_names: # needed for 16-bit
+    if 'lm_head' in lora_module_names:  # needed for 16-bit
         lora_module_names.remove('lm_head')
     return list(lora_module_names)
 
@@ -280,7 +281,7 @@ def _mask_targets(target, tokenized_lens, speakers):
     target[:cur_idx] = IGNORE_INDEX
     for tokenized_len, speaker in zip(tokenized_lens, speakers):
         if speaker == "human":
-            target[cur_idx+2:cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + 2:cur_idx + tokenized_len] = IGNORE_INDEX
         cur_idx += tokenized_len
 
 
@@ -320,7 +321,8 @@ def preprocess_multimodal(
                 sentence['value'] = DEFAULT_IMAGE_TOKEN + '\n' + sentence['value']
                 sentence['value'] = sentence['value'].strip()
                 if "mmtag" in conversation_lib.default_conversation.version:
-                    sentence['value'] = sentence['value'].replace(DEFAULT_IMAGE_TOKEN, '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>')
+                    sentence['value'] = sentence['value'].replace(DEFAULT_IMAGE_TOKEN,
+                                                                  '<Image>' + DEFAULT_IMAGE_TOKEN + '</Image>')
             replace_token = DEFAULT_IMAGE_TOKEN
             if data_args.mm_use_im_start_end:
                 replace_token = DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
@@ -354,7 +356,8 @@ def preprocess_llama_2(
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -392,7 +395,7 @@ def preprocess_llama_2(
                 round_len = len(tokenizer(rou).input_ids)
                 instruction_len = len(tokenizer(parts[0]).input_ids) - 2
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -436,7 +439,8 @@ def preprocess_v1(
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -478,7 +482,7 @@ def preprocess_v1(
                 round_len -= 1
                 instruction_len -= 1
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -522,7 +526,8 @@ def preprocess_mpt(
     # Tokenize conversations
 
     if has_image:
-        input_ids = torch.stack([tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
+        input_ids = torch.stack(
+            [tokenizer_image_token(prompt, tokenizer, return_tensors='pt') for prompt in conversations], dim=0)
     else:
         input_ids = tokenizer(
             conversations,
@@ -541,9 +546,9 @@ def preprocess_mpt(
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
 
         rounds = conversation.split(conv.sep)
-        re_rounds = [conv.sep.join(rounds[:3])] # system + user + gpt
+        re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx:conv_idx+2]))    # user + gpt
+            re_rounds.append(conv.sep.join(rounds[conv_idx:conv_idx + 2]))  # user + gpt
         cur_len = 0
         target[:cur_len] = IGNORE_INDEX
         for i, rou in enumerate(re_rounds):
@@ -566,7 +571,7 @@ def preprocess_mpt(
                 round_len += 1
                 instruction_len += 1
 
-            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+            target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
 
             cur_len += round_len
         target[cur_len:] = IGNORE_INDEX
@@ -633,6 +638,7 @@ def preprocess(
         header = f"{conversation_lib.default_conversation.system}\n\n"
         conversation = _add_speaker_and_signal(header, source)
         conversations.append(conversation)
+
     # tokenize conversations
     def get_tokenize_len(prompts):
         return [len(tokenizer_image_token(prompt, tokenizer)) for prompt in prompts]
@@ -712,7 +718,8 @@ class LazySupervisedDataset(Dataset):
                         result = Image.new(pil_img.mode, (height, height), background_color)
                         result.paste(pil_img, ((height - width) // 2, 0))
                         return result
-                image = expand2square(image, tuple(int(x*255) for x in processor.image_mean))
+
+                image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
             else:
                 image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
@@ -776,13 +783,16 @@ class DataCollatorForSupervisedDataset(object):
 def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
                                 data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = LazySupervisedDataset(tokenizer=tokenizer,
-                                data_path=data_args.data_path,
-                                data_args=data_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
+    train_dataset = LazySupervisedDataset(tokenizer=tokenizer,  # 通过LazySupervisedDataset类初始化训练数据：
+                                          data_path=data_args.data_path,#llava_instruct_80k.json
+                                          data_args=data_args)
+    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)#初始化DataCollatorForSupervisedDataset#负责将多个样本打包成批次（batch）。
+                                            # 对文本序列进行填充（用[PAD]）和截断（按模型最大长度），确保批次内序列长度一致。
+                                            # 生成注意力掩码（attention_mask），标记有效 token 位置（忽略填充符）。
+                                            # 处理图像数据，将多个样本的图像张量堆叠成批次格式
     return dict(train_dataset=train_dataset,
                 eval_dataset=None,
-                data_collator=data_collator)
+                data_collator=data_collator)#以字典形式返回训练数据集、评估数据集（此处为None，表示不进行评估）和数据整理器，供训练器（Trainer）直接使用。
 
 
 def train(attn_implementation=None):
@@ -791,12 +801,14 @@ def train(attn_implementation=None):
     parser = transformers.HfArgumentParser(
         (ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-    local_rank = training_args.local_rank
+    local_rank = training_args.local_rank  # 分布式训练中的进程标识
     compute_dtype = (torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
-
+    # 根据训练参数（fp16/bf16）确定计算精度，优化训练速度和内存占用。
     bnb_model_from_pretrained_args = {}
-    if training_args.bits in [4, 8]:
+    if training_args.bits in [4, 8]:  # 4/8 位量化配置（BitsAndBytes）
         from transformers import BitsAndBytesConfig
+        # 跳过视觉 - 语言连接器（mm_projector）的量化，避免影响多模态对齐精度。
+
         bnb_model_from_pretrained_args.update(dict(
             device_map={"": training_args.device},
             load_in_4bit=training_args.bits == 4,
@@ -809,12 +821,12 @@ def train(attn_implementation=None):
                 llm_int8_has_fp16_weight=False,
                 bnb_4bit_compute_dtype=compute_dtype,
                 bnb_4bit_use_double_quant=training_args.double_quant,
-                bnb_4bit_quant_type=training_args.quant_type # {'fp4', 'nf4'}
+                bnb_4bit_quant_type=training_args.quant_type  # {'fp4', 'nf4'} # 配置量化计算类型（如fp4/nf4）和阈值，平衡精度与性能。
             )
         ))
-
-    if model_args.vision_tower is not None:
-        if 'mpt' in model_args.model_name_or_path:
+    # Tokenizer 初始化
+    if model_args.vision_tower is not None:  # 有东西，就是clip 14
+        if 'mpt' in model_args.model_name_or_path:  # 这是Mpt 架构，现在不加载这个架构，
             config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
             config.attn_config['attn_impl'] = training_args.mpt_attn_impl
             model = LlavaMptForCausalLM.from_pretrained(
@@ -822,13 +834,14 @@ def train(attn_implementation=None):
                 config=config,
                 cache_dir=training_args.cache_dir,
                 **bnb_model_from_pretrained_args
-            )
-        else:
+            )  # 加载与模型匹配的 Tokenizer，处理文本 tokenization。
+
+        else:  # 执行这里
             model = LlavaLlamaForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
                 cache_dir=training_args.cache_dir,
-                attn_implementation=attn_implementation,
-                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                attn_implementation=attn_implementation,  # flash attention2
+                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),  # bf16
                 **bnb_model_from_pretrained_args
             )
     else:
@@ -841,35 +854,37 @@ def train(attn_implementation=None):
         )
     model.config.use_cache = False
 
-    if model_args.freeze_backbone:
+    if model_args.freeze_backbone:  # 目前是False是否冻结 LLM 主干网络，仅训练视觉 - 语言连接器等组件。
         model.model.requires_grad_(False)
 
-    if training_args.bits in [4, 8]:
+    if training_args.bits in [4, 8]:  # training_args.bits 是16
         from peft import prepare_model_for_kbit_training
-        model.config.torch_dtype=(torch.float32 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
+        model.config.torch_dtype = (
+            torch.float32 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=training_args.gradient_checkpointing)
 
-    if training_args.gradient_checkpointing:
+    if training_args.gradient_checkpointing:  # True 梯度检查点（gradient_checkpointing）：通过牺牲部分计算速度换取内存节省，适合大模型训练。
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
         else:
             def make_inputs_require_grad(module, input, output):
                 output.requires_grad_(True)
+
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
-    if training_args.lora_enable:
+    if training_args.lora_enable:  # lora的配置
         from peft import LoraConfig, get_peft_model
         lora_config = LoraConfig(
-            r=training_args.lora_r,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_all_linear_names(model),
+            r=training_args.lora_r,  # LoRA矩阵的秩（Rank），目前配置的是64 仅训练低秩矩阵，大幅降低内存占用。
+            lora_alpha=training_args.lora_alpha,  # 配置 LoRA 的秩（r）、缩放因子（lora_alpha）、
+            target_modules=find_all_linear_names(model),  # 目标层（target_modules，通常为 Transformer 的线性层）等。
             lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias,
+            bias=training_args.lora_bias,  # none
             task_type="CAUSAL_LM",
         )
-        if training_args.bits == 16:
+        if training_args.bits == 16:  # 运行这里
             if training_args.bf16:
-                model.to(torch.bfloat16)
+                model.to(torch.bfloat16)  # 用这个
             if training_args.fp16:
                 model.to(torch.float16)
         rank0_print("Adding LoRA adapters...")
@@ -882,8 +897,8 @@ def train(attn_implementation=None):
             model_max_length=training_args.model_max_length,
             padding_side="right"
         )
-    else:
-        tokenizer = transformers.AutoTokenizer.from_pretrained(
+    else:  # Tokenizer 初始化
+        tokenizer = transformers.AutoTokenizer.from_pretrained(  # 使用这个
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             model_max_length=training_args.model_max_length,
@@ -891,13 +906,13 @@ def train(attn_implementation=None):
             use_fast=False,
         )
 
-    if model_args.version == "v0":
+    if model_args.version == "v0":  # 配置 Tokenizer 的特殊符号（如 pad token）和对话模板（用于处理多轮对话格式）。
         if tokenizer.pad_token is None:
             smart_tokenizer_and_embedding_resize(
                 special_tokens_dict=dict(pad_token="[PAD]"),
                 tokenizer=tokenizer,
                 model=model,
-            )
+            )  # 版本的选择只有两个，分别是v0和v0.5
     elif model_args.version == "v0.5":
         tokenizer.pad_token = tokenizer.unk_token
     else:
@@ -906,23 +921,24 @@ def train(attn_implementation=None):
             conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
         else:
             conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1"]
-
+    # 多模态组件初始化
     if model_args.vision_tower is not None:
         model.get_model().initialize_vision_modules(
             model_args=model_args,
             fsdp=training_args.fsdp
         )
-        
+        # 配置训练策略
+        # 加载视觉塔（如 CLIP 的 ViT），并设置其数据类型和设备
         vision_tower = model.get_vision_tower()
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
-        data_args.image_processor = vision_tower.image_processor
+        data_args.image_processor = vision_tower.image_processor  # 这个是CLIP
         data_args.is_multimodal = True
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
-        model.config.tokenizer_padding_side = tokenizer.padding_side
+        model.config.tokenizer_padding_side = tokenizer.padding_side  # right
         model.config.tokenizer_model_max_length = tokenizer.model_max_length
-
+        # 配置mm_projector（视觉 - 语言连接器）的训练策略：是否冻结（freeze_mm_mlp_adapter）或仅训练该组件（tune_mm_mlp_adapter）
         model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
         if model_args.tune_mm_mlp_adapter:
             model.requires_grad_(False)
@@ -936,14 +952,15 @@ def train(attn_implementation=None):
 
         if training_args.bits in [4, 8]:
             model.get_model().mm_projector.to(dtype=compute_dtype, device=training_args.device)
-
+        # 同步模型配置与数据配置（如图像宽高比、是否使用图像起止标记[IMG_START]/[IMG_END]）。
         model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_projector_lr = training_args.mm_projector_lr
         training_args.use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
 
-    if training_args.bits in [4, 8]:
+    if training_args.bits in [4, 8]:  # 在 4/8 位量化训练中，调整特定模块的数据类型以保证精度。
+        # LoRA 层使用bf16（若启用），归一化层（norm）使用float32（避免精度损失），输出层（lm_head）和嵌入层根据配置调整 dtype。
         from peft.tuners.lora import LoraLayer
         for name, module in model.named_modules():
             if isinstance(module, LoraLayer):
@@ -955,23 +972,23 @@ def train(attn_implementation=None):
                 if hasattr(module, 'weight'):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
-
+    # 数据模块准备
     data_module = make_supervised_data_module(tokenizer=tokenizer,
                                               data_args=data_args)
-    trainer = LLaVATrainer(model=model,
-                    tokenizer=tokenizer,
-                    args=training_args,
-                    **data_module)
+    trainer = LLaVATrainer(model=model,  # 初始化训练器并启动训练
+                           tokenizer=tokenizer,
+                           args=training_args,
+                           **data_module)
 
-    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
+    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):  # 若输出目录存在 checkpoint，从断点恢复训练。
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
-    trainer.save_state()
+    trainer.save_state()  # 训练结束后保存训练状态，例如优化器参数
 
     model.config.use_cache = True
 
-    if training_args.lora_enable:
+    if training_args.lora_enable:  # 训练结束后保存模型，区分 LoRA 微调与全参数微调的保存逻辑。
         state_dict = get_peft_state_maybe_zero_3(
             model.named_parameters(), training_args.lora_bias
         )
