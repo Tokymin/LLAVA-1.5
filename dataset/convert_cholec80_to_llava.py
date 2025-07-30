@@ -111,6 +111,74 @@ def parse_value(value_str):
     return value_str
 
 
+def extract_id_from_path(frame_path, video_id):
+    """
+    从frame_path和video_id中提取ID，格式为25_00162_162
+    适配目录格式为video25的情况
+    """
+    try:
+        # 清理输入中的引号和逗号
+        cleaned_frame_path = frame_path.strip().strip('",')
+        cleaned_video_id = video_id.strip().strip('",')
+
+        # 从video_id提取数字部分 (video25 -> 25)
+        video_match = re.search(r'\d+', cleaned_video_id)
+        if not video_match:
+            raise ValueError(f"无法从video_id提取数字: {cleaned_video_id}")
+        video_num = video_match.group()
+
+        # 从frame_path提取中间编号
+        # 处理两种目录格式: video25_00162 或 video25
+        path_parts = cleaned_frame_path.split(os.sep)
+
+        # 查找包含video和数字的目录部分
+        dir_part = next((part for part in path_parts if cleaned_video_id in part), None)
+        if not dir_part:
+            raise ValueError(f"找不到包含video_id的目录: {cleaned_video_id}")
+
+        # 提取中间编号 - 适配两种格式
+        dir_parts = dir_part.split('_')
+        if len(dir_parts) >= 2 and dir_parts[1].isdigit():
+            # 格式1: video25_00162 -> 提取00162
+            middle_num = dir_parts[1]
+        else:
+            # 格式2: video25 -> 从上级路径或文件名提取
+            # 尝试从frame_path中提取类似00162的编号
+            middle_match = re.search(r'video\d+_(\d+)', cleaned_frame_path)
+            if middle_match:
+                middle_num = middle_match.group(1)
+            else:
+                # 尝试从frame_id提取(备选方案)
+                frame_id_match = re.search(r'frame_(\d+)_', os.path.basename(cleaned_frame_path))
+                if frame_id_match:
+                    middle_num = frame_id_match.group(1)
+                else:
+                    # 最终备选: 使用00000
+                    middle_num = "00000"
+
+        # 从frame_path提取帧编号 (frame_162_endo.png -> 162)
+        frame_filename = os.path.basename(cleaned_frame_path)
+        frame_match = re.search(r'frame_(\d+)_', frame_filename)
+        if not frame_match:
+            # 备选方案: 从文件名提取数字
+            frame_match = re.search(r'(\d+)', frame_filename)
+
+        if not frame_match:
+            raise ValueError(f"无法从文件名提取帧编号: {frame_filename}")
+
+        frame_num = frame_match.group(1)
+
+        # 组合成目标ID格式
+        return f"{video_num}_{middle_num}_{frame_num}"
+    except Exception as e:
+        # 打印错误信息以便调试
+        print(f"提取ID时出错: {str(e)}")
+        # 使用更可靠的备选方案
+        fallback_video = re.search(r'\d+', cleaned_video_id).group() if re.search(r'\d+', cleaned_video_id) else "00"
+        fallback_frame = re.search(r'\d+', cleaned_frame_path).group() if re.search(r'\d+',
+                                                                                    cleaned_frame_path) else "000"
+        return f"fallback_{fallback_video}_{fallback_frame}"
+
 def convert_to_llava_format(cholec80_file, output_file):
     """将修复后的cholec80数据转换为llava格式"""
     # 修复并读取数据
@@ -125,6 +193,7 @@ def convert_to_llava_format(cholec80_file, output_file):
         video_id = item.get('video_id', f"video_{idx}")
         frame_id = item.get('frame_id', idx)
         phase = item.get('phase', "Unknown")
+        frame_path = item.get('frame_path', "")
 
         # 确保tools是列表
         tools = item.get('tools', [])
@@ -138,13 +207,12 @@ def convert_to_llava_format(cholec80_file, output_file):
 
         risk_level = item.get('risk_level', 0)
         response = item.get('response', "")
-        frame_path = item.get('frame_path', "")
 
-        # 生成唯一ID
-        unique_id = f"{video_id}_{frame_id}"
+        # 生成ID（格式：25_00162_162）
+        unique_id = extract_id_from_path(frame_path, video_id)
 
-        # 提取图像文件名
-        image_filename = os.path.basename(frame_path) if frame_path else f"{unique_id}.png"
+        # 使用完整frame_path作为image值
+        image_value = frame_path
 
         # 创建多轮对话
         conversations = []
@@ -217,7 +285,7 @@ def convert_to_llava_format(cholec80_file, output_file):
         # 添加到结果中
         llava_format_data.append({
             "id": unique_id,
-            "image": image_filename,
+            "image": image_value,  # 使用完整路径
             "conversations": conversations
         })
 
@@ -226,6 +294,7 @@ def convert_to_llava_format(cholec80_file, output_file):
         json.dump(llava_format_data, f, ensure_ascii=False, indent=2)
 
     print(f"转换完成，已保存到 {output_file}")
+
 
 
 if __name__ == "__main__":

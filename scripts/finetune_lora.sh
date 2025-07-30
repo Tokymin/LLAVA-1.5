@@ -20,7 +20,7 @@ deepspeed llava/train/train_mem.py \
     --lora_enable True \
     --model_name_or_path /mnt/share/HuggingfaceModels/liuhaotian/llava-v1.5-7b \
     --version $PROMPT_VERSION \
-    --data_path /mnt/share/HuggingfaceDatasets/liuhaotian/LLaVA-Instruct-150K/llava_instruct_80k.json \
+    --data_path /media/user/data3/toky/Datasets/Cholec80QA/converted_cholec80_to_llava.json \
     --image_folder /mnt/share/Datasets/LLAVA-1.5/playground/data/coco/train2017 \
     --vision_tower /mnt/share/HuggingfaceModels/openai/clip-vit-large-patch14/ \
     --pretrain_mm_mlp_adapter /mnt/share/HuggingfaceModels/liuhaotian/llava-v1.5-7b/mm_projector.bin \

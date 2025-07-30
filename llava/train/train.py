@@ -704,7 +704,10 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            cleaned_path = image_file.strip('", ')
+            # 2. 强制转换为绝对路径（无论原始路径是相对还是绝对）
+            absolute_path = os.path.abspath(cleaned_path)
+            image = Image.open(absolute_path).convert('RGB')
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
@@ -784,15 +787,16 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
                                 data_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer,  # 通过LazySupervisedDataset类初始化训练数据：
-                                          data_path=data_args.data_path,#llava_instruct_80k.json
+                                          data_path=data_args.data_path,  # llava_instruct_80k.json
                                           data_args=data_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)#初始化DataCollatorForSupervisedDataset#负责将多个样本打包成批次（batch）。
-                                            # 对文本序列进行填充（用[PAD]）和截断（按模型最大长度），确保批次内序列长度一致。
-                                            # 生成注意力掩码（attention_mask），标记有效 token 位置（忽略填充符）。
-                                            # 处理图像数据，将多个样本的图像张量堆叠成批次格式
+    data_collator = DataCollatorForSupervisedDataset(
+        tokenizer=tokenizer)  # 初始化DataCollatorForSupervisedDataset#负责将多个样本打包成批次（batch）。
+    # 对文本序列进行填充（用[PAD]）和截断（按模型最大长度），确保批次内序列长度一致。
+    # 生成注意力掩码（attention_mask），标记有效 token 位置（忽略填充符）。
+    # 处理图像数据，将多个样本的图像张量堆叠成批次格式
     return dict(train_dataset=train_dataset,
                 eval_dataset=None,
-                data_collator=data_collator)#以字典形式返回训练数据集、评估数据集（此处为None，表示不进行评估）和数据整理器，供训练器（Trainer）直接使用。
+                data_collator=data_collator)  # 以字典形式返回训练数据集、评估数据集（此处为None，表示不进行评估）和数据整理器，供训练器（Trainer）直接使用。
 
 
 def train(attn_implementation=None):
