@@ -15,6 +15,7 @@ data
 bitsandbytes
 # Editor
 .idea
+merge_lora_models
 *.swp
 llava.egg-info
 checkpoints

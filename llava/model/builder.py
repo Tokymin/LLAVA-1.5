@@ -67,11 +67,28 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 # this is probably from HF Hub
                 from huggingface_hub import hf_hub_download
                 def load_from_hf(repo_id, filename, subfolder=None):
-                    cache_file = hf_hub_download(
-                        repo_id=repo_id,
-                        filename=filename,
-                        subfolder=subfolder)
-                    return torch.load(cache_file, map_location='cpu')
+                    # 判断是否是本地路径
+                    if os.path.exists(repo_id):
+                        # 构建本地文件路径
+                        if subfolder:
+                            full_path = os.path.join(repo_id, subfolder, filename)
+                        else:
+                            full_path = os.path.join(repo_id, filename)
+                        # 检查文件是否存在
+                        if not os.path.exists(full_path):
+                            raise FileNotFoundError(f"本地模型文件不存在: {full_path}")
+                        print(f"从本地路径加载: {full_path}")
+                        return torch.load(full_path, map_location='cpu')
+
+                    else:
+                        # 从Hugging Face Hub下载
+                        print(f"从Hugging Face下载: {repo_id}/{filename} (subfolder: {subfolder})")
+                        cache_file = hf_hub_download(
+                            repo_id=repo_id,
+                            filename=filename,
+                            subfolder=subfolder
+                        )
+                        return torch.load(cache_file, map_location='cpu')
                 non_lora_trainables = load_from_hf(model_path, 'non_lora_trainables.bin')
             non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
             if any(k.startswith('model.model.') for k in non_lora_trainables):

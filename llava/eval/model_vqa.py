@@ -55,7 +55,7 @@ def eval_model(args):
 
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
 
-        image = Image.open(os.path.join(args.image_folder, image_file)).convert('RGB')
+        image = Image.open(os.path.join(args.image_folder, "COCO_val2014_"+image_file)).convert('RGB')
         image_tensor = process_images([image], image_processor, model.config)[0]
 
         with torch.inference_mode():
