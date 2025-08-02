@@ -3,12 +3,12 @@
 deepspeed llava/train/train_mem.py \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 \
     --deepspeed ./scripts/zero3.json \
-    --model_name_or_path lmsys/vicuna-13b-v1.5 \
+    --model_name_or_path /mnt/share/HuggingfaceModels/lmsys/vicuna-13b-v1.5 \
     --version v1 \
-    --data_path ./playground/data/llava_v1_5_mix665k.json \
-    --image_folder ./playground/data \
-    --vision_tower openai/clip-vit-large-patch14-336 \
-    --pretrain_mm_mlp_adapter ./checkpoints/llava-v1.5-13b-pretrain/mm_projector.bin \
+    --data_path /media/user/data3/toky/Datasets/Cholec80QA/converted_cholec80_to_llava.json \
+    --image_folder /mnt/share/Datasets/LLAVA-1.5/playground/data/coco/train2017 \
+    --vision_tower /mnt/share/HuggingfaceModels/openai/clip-vit-large-patch14/ \
+    --pretrain_mm_mlp_adapter /mnt/share/HuggingfaceModels/DetionDX/llava-v1.5-13b-pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \

@@ -18,7 +18,7 @@ import math
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i:i+chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -38,56 +38,92 @@ def eval_model(args):
     answers_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
     ans_file = open(answers_file, "w")
+
+    # 记录异常样本的ID，方便后续排查
+    error_log = []
+
     for line in tqdm(questions):
-        idx = line["question_id"]
-        image_file = line["image"]
-        qs = line["text"]
-        cur_prompt = qs
-        if model.config.mm_use_im_start_end:
-            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
-        else:
-            qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
+        try:  # 捕获单个样本的处理异常
+            idx = line["question_id"]
+            image_file = line["image"]
+            qs = line["text"]
+            cur_prompt = qs
 
-        conv = conv_templates[args.conv_mode].copy()
-        conv.append_message(conv.roles[0], qs)
-        conv.append_message(conv.roles[1], None)
-        prompt = conv.get_prompt()
+            # 检查图像文件是否存在
+            if not os.path.exists(image_file):
+                raise FileNotFoundError(f"Image file not found: {image_file}")
 
-        input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+            if model.config.mm_use_im_start_end:
+                qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + qs
+            else:
+                qs = DEFAULT_IMAGE_TOKEN + '\n' + qs
 
-        image = Image.open(os.path.join(args.image_folder, "COCO_val2014_"+image_file)).convert('RGB')
-        image_tensor = process_images([image], image_processor, model.config)[0]
+            conv = conv_templates[args.conv_mode].copy()
+            conv.append_message(conv.roles[0], qs)
+            conv.append_message(conv.roles[1], None)
+            prompt = conv.get_prompt()
 
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids,
-                images=image_tensor.unsqueeze(0).half().cuda(),
-                image_sizes=[image.size],
-                do_sample=True if args.temperature > 0 else False,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                num_beams=args.num_beams,
-                # no_repeat_ngram_size=3,
-                max_new_tokens=1024,
-                use_cache=True)
+            input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(
+                0).cuda()
 
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+            # 加载图像（添加异常处理）
+            try:
+                image = Image.open(image_file).convert('RGB')  # 直接使用image_file路径（假设已包含完整路径）
+            except Exception as e:
+                raise ValueError(f"Failed to load image {image_file}: {str(e)}")
 
-        ans_id = shortuuid.uuid()
-        ans_file.write(json.dumps({"question_id": idx,
-                                   "prompt": cur_prompt,
-                                   "text": outputs,
-                                   "answer_id": ans_id,
-                                   "model_id": model_name,
-                                   "metadata": {}}) + "\n")
-        ans_file.flush()
+            image_tensor = process_images([image], image_processor, model.config)[0]
+
+            with torch.inference_mode():
+                output_ids = model.generate(
+                    input_ids,
+                    images=image_tensor.unsqueeze(0).half().cuda(),
+                    image_sizes=[image.size],
+                    do_sample=True if args.temperature > 0 else False,
+                    temperature=args.temperature,
+                    top_p=args.top_p,
+                    num_beams=args.num_beams,
+                    max_new_tokens=1024,
+                    use_cache=True)
+
+            outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+
+            ans_id = shortuuid.uuid()
+            ans_file.write(json.dumps({
+                "question_id": idx,
+                "prompt": cur_prompt,
+                "text": outputs,
+                "answer_id": ans_id,
+                "model_id": model_name,
+                "metadata": {}
+            }) + "\n")
+            ans_file.flush()
+
+        except Exception as e:  # 捕获所有异常，跳过当前样本
+            error_msg = f"Error processing question_id {line.get('question_id', 'unknown')}: {str(e)}"
+            print(error_msg)  # 打印错误信息
+            error_log.append({
+                "question_id": line.get("question_id", "unknown"),
+                "error": str(e)
+            })
+            continue  # 跳过当前样本，继续处理下一个
+
     ans_file.close()
+
+    # 保存异常样本日志
+    if error_log:
+        error_log_path = os.path.splitext(answers_file)[0] + "_errors.jsonl"
+        with open(error_log_path, "w") as f:
+            for err in error_log:
+                f.write(json.dumps(err) + "\n")
+        print(f"Found {len(error_log)} error samples. Details saved to {error_log_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
     parser.add_argument("--model-base", type=str, default=None)
-    parser.add_argument("--image-folder", type=str, default="")
+    parser.add_argument("--image-folder", type=str, default="")  # 若image字段已是完整路径，可保持为空
     parser.add_argument("--question-file", type=str, default="tables/question.jsonl")
     parser.add_argument("--answers-file", type=str, default="answer.jsonl")
     parser.add_argument("--conv-mode", type=str, default="llava_v1")

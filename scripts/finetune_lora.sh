@@ -10,15 +10,15 @@
 ################## VICUNA ##################
 
 ################## LLaMA-2 ##################
-# PROMPT_VERSION="llava_llama_2"
-# MODEL_VERSION="llama-2-7b-chat"
+ PROMPT_VERSION="llava_llama_2"
+ MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
-PROMPT_VERSION=v1
-MODEL_VERSION="llava-v1.5-7b"
+#PROMPT_VERSION=v1
+#MODEL_VERSION="llava-v1.5-7b"
 deepspeed llava/train/train_mem.py \
     --deepspeed ./scripts/zero2.json \
     --lora_enable True \
-    --model_name_or_path /mnt/share/HuggingfaceModels/liuhaotian/llava-v1.5-7b \
+    --model_name_or_path /mnt/share/HuggingfaceModels/llama/Llama-2-7b-chat-hf \
     --version $PROMPT_VERSION \
     --data_path /media/user/data3/toky/Datasets/Cholec80QA/converted_cholec80_to_llava.json \
     --image_folder /mnt/share/Datasets/LLAVA-1.5/playground/data/coco/train2017 \
